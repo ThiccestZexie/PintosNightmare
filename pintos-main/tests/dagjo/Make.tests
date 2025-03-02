@@ -1,0 +1,18 @@
+# -*- makefile -*-
+
+tests/%.output: FILESYSSOURCE = --filesys-size=4
+tests/%.output: PUTFILES = $(filter-out kernel.bin loader.bin, $^)
+
+tests/dagjo_TESTS = $(addprefix tests/dagjo/,recursor-p)
+
+tests/dagjo_PROGS = $(tests/dagjo_TESTS)  $(addprefix \
+tests/dagjo/,recursor-c)
+
+# recursor_ng
+tests/dagjo/recursor-p_SRC = tests/dagjo/recursor-p.c
+tests/dagjo/recursor-c_SRC = tests/dagjo/recursor-c.c 
+tests/dagjo/recursor-p_PUTFILES += tests/dagjo/recursor-c
+
+$(foreach prog,$(tests/dagjo_PROGS),$(eval $(prog)_SRC += tests/lib.c))
+
+tests/dagjo/recursor-p.output: PINTOSOPTS = --mem=128

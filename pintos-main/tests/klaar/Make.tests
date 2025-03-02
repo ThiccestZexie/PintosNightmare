@@ -1,0 +1,38 @@
+# -*- makefile -*-
+
+tests/%.output: FILESYSSOURCE = --filesys-size=2
+tests/%.output: PUTFILES = $(filter-out kernel.bin loader.bin, $^)
+
+tests/klaar_TESTS = $(addprefix tests/klaar/,read-bad-buf low-mem \
+exec-corrupt pfs)
+
+tests/klaar_PROGS = $(tests/klaar_TESTS) $(addprefix \
+tests/klaar/,child-simple pfs-reader pfs-writer)
+
+# read-bad-buf
+tests/klaar/read-bad-buf_SRC = tests/klaar/read-bad-buf.c tests/main.c
+tests/klaar/read-bad-buf_PUTFILES += tests/klaar/sample.txt
+
+# low-mem
+tests/klaar/low-mem_SRC = tests/klaar/low-mem.c tests/main.c
+tests/klaar/child-simple_SRC = tests/klaar/child-simple.c
+tests/klaar/low-mem_PUTFILES += tests/klaar/child-simple
+
+# exec-corrupt
+tests/klaar/exec-corrupt_SRC += tests/klaar/exec-corrupt.c tests/main.c
+tests/klaar/exec-corrupt_PUTFILES += tests/klaar/corrupt-elf
+
+# pfs
+tests/klaar/pfs_SRC = tests/klaar/pfs.c
+tests/klaar/pfs-reader_SRC = tests/klaar/pfs-reader.c
+tests/klaar/pfs-writer_SRC = tests/klaar/pfs-writer.c
+tests/klaar/pfs_PUTFILES += tests/klaar/pfs-reader
+tests/klaar/pfs_PUTFILES += tests/klaar/pfs-writer
+tests/klaar/pfs_ARGS = 10 5
+
+$(foreach prog,$(tests/klaar_PROGS),$(eval $(prog)_SRC += tests/lib.c))
+
+tests/klaar/low-mem.output: KERNELFLAGS = -tcl=3
+
+tests/klaar/pfs.output: TIMEOUT = 180
+tests/klaar/pfs.output: KERNELFLAGS = -S
