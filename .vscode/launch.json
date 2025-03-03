@@ -1,0 +1,33 @@
+{
+    "configurations": [
+        {
+            "name": "[cppdbg] Attach",
+            "type": "cppdbg", // Ensure the correct type for your debugger
+            "request": "launch",
+            "program": "${workspaceRoot}/userprog/build/kernel.o", // Path to your program
+            "miDebuggerServerAddress": ":1234", // Address and port of gdbserver
+            "miDebuggerArgs": "-q", // Quiet mode for GDB
+            "targetArchitecture": "x86_64", // Specify the target architecture
+            "cwd": "${workspaceRoot}", // Current working directory
+            "MIMode": "gdb", // Specify gdb as the debugger
+            "externalConsole": false,
+            "setupCommands": [
+                {
+                    "description": "Substitute container paths with host paths",
+                    "text": "set substitute-path /pintos /home/sermuns/Git/tdde68-2024/pintos",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable verbose output",
+                    "text": "set verbose off",
+                    "ignoreFailures": false
+                }
+            ],
+        }
+    ]
+}

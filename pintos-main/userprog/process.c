@@ -12,6 +12,8 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "lib/string.h"
+#include "lib/stdio.h"
 
 #include <debug.h>
 #include <inttypes.h>
@@ -20,9 +22,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_ARGC 32
+
 static thread_func start_process NO_RETURN;
 static bool load(const char* file_name, void (**eip)(void), void** esp);
 static void dump_stack(const void* esp);
+void push_args(void **esp, const unsigned argc, const char *argv[]);
+
 
 /* Starts a new thread running a user program loaded from
 	CMD_LINE.  The new thread may be scheduled (and may even exit)
@@ -54,21 +60,43 @@ static void start_process(void* cmd_line_)
 	char* cmd_line = cmd_line_;
 	struct intr_frame if_;
 	struct thread *t = thread_current();
-	bool success;
 
 	/* Initialize interrupt frame and load executable. */
 	memset(&if_, 0, sizeof if_);
 	if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
 	if_.cs = SEL_UCSEG;
 	if_.eflags = FLAG_IF | FLAG_MBS;
+	
+	// Tokenize args
+	char **argv = (const char**)palloc_get_page(0);
+	unsigned argc = 0;
+	char *save_ptr;
+	
+	argv[0] = strtok_r(cmd_line, " ", &save_ptr);
+	for(argc = 1; argc < MAX_ARGC; argc++)
+	{
+		argv[argc] = strtok_r(NULL, " ", &save_ptr);
+		if(argv[argc] == NULL)
+			break;
+	}
+
+
+	
+	bool success;
 
 	// Note: load requires the file name only, not the entire cmd_line
 	success = load(t->name, &if_.eip, &if_.esp);
 
+	if(success) //--> 
+		push_args(&if_.esp, argc, argv);
+	dump_stack(if_.esp);
+	
 	/* If load failed, quit. */
 	palloc_free_page(cmd_line);
 	if (!success)
 		thread_exit();
+	
+
 
 	/* Start the user process by simulating a return from an
 		interrupt, implemented by intr_exit (in
@@ -80,6 +108,44 @@ static void start_process(void* cmd_line_)
 	NOT_REACHED();
 }
 
+/**
+ * push arguments onto the stack
+ */
+void push_args(void **esp, const unsigned argc, const char *argv[])
+ {
+	 char *argv_addr[32]; // array of pointers to arguments
+	 // push all the arguments onto stack
+	 for (int i = argc - 1; i >= 0; i--) // skip the first argument which is the file name
+	 {
+		 *esp -= strlen(argv[i]) + 1;
+		 memcpy(*esp, argv[i], strlen(argv[i]) + 1);
+		 argv_addr[i] = *esp;
+	 }
+	 // padding for word align
+	 *esp -= (size_t)*esp % 4;
+ 
+	 // push null sentinel
+	 argv_addr[argc] = NULL;
+	 // push pointers to arguments onto stack
+	 for (int i = argc; i >= 0; i--)
+	 {
+		 *esp -= sizeof(char *);
+		 memcpy(*esp, &argv_addr[i], sizeof(char *));
+	 }
+ 
+	 // push argv
+	 char **argv_ptr = *esp;
+	 *esp -= sizeof(char **);
+	 memcpy(*esp, &argv_ptr, sizeof(char **));
+	 // argc
+	 *esp -= sizeof(int);
+	 memcpy(*esp, &argc, sizeof(int));
+ 
+	 // push return address
+	 *esp -= sizeof(void *);
+	 memcpy(*esp, &argv[argc], sizeof(void *));
+ }
+  
 /* Waits for thread TID to die and returns its exit status.  If
 	it was terminated by the kernel (i.e. killed due to an
 	exception), returns -1.  If TID is invalid or if it was not a

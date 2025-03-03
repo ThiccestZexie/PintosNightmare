@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.masm": "asm-intel-x86-generic",
+        "*.kernel": "makefile",
+        "*.build": "makefile",
+        "*.config": "makefile",
+        "*.tests": "makefile",
+        "stdio.h": "c",
+        "pagedir.h": "c",
+        "chrono": "c"
+    }
+}
