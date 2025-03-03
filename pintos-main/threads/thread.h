@@ -1,9 +1,15 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
+#define USERPROG // FIXME: Added by me DANIEL
 
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+
+
+#ifdef USERPROG
+#define MAX_FDS 130
+#endif
 
 /* States in a thread's life cycle. */
 enum thread_status {
@@ -95,6 +101,7 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint32_t* pagedir; /* Page directory. */
+	int fds[MAX_FDS]; /* Unique FDs for each thread.*/
 #endif
 
 	/* Owned by thread.c. */

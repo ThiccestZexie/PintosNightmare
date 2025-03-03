@@ -101,6 +101,10 @@ int read(int fd, void* buffer, unsigned size)
 	return syscall3(SYS_READ, fd, buffer, size);
 }
 
+void sleep(int millis){
+	syscall1(SYS_SLEEP, millis);
+}
+
 int write(int fd, const void* buffer, unsigned size)
 {
 	return syscall3(SYS_WRITE, fd, buffer, size);
