@@ -46,17 +46,14 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 	int *argv[MAX_ARGS];
 
 	int syscall_num = *(int *)f->esp;
-	printf("syscall number: %d\n", syscall_num);
 	// retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
 
 	switch (syscall_num)
 	{
 	case SYS_HALT:
-		printf("halt\n");
 		halt();
 		break;
 	case SYS_EXIT:
-		printf("exit\n");
 		retrive_args1(f->esp, argv, 1);
 		exit(argv[0]);
 		break;
@@ -67,52 +64,42 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		printf("wait\n");
 		break;
 	case SYS_CREATE:
-		printf("create\n");
 		retrive_args1(f->esp, argv, 2);
 		f->eax = create(argv[0], argv[1]);
 		break;
 	case SYS_REMOVE:
-		printf("remove\n");
 		retrive_args1(f->esp, argv, 1);
 		f->eax = remove(argv[0]);
 		break;
 	case SYS_OPEN:
-		printf("open\n");
 		retrive_args1(f->esp, argv, 1);
 		f->eax = open(argv[0]);
 		break;
 	case SYS_FILESIZE:
-		printf("filesize\n");
 		retrive_args1(f->esp, argv, 1);
 		f->eax = filesize(argv[0]);
 		break;
 	case SYS_READ:
-		printf("read\n");
 		retrive_args1(f->esp, argv, 3);
 		f->eax = read(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_WRITE:
-		printf("write\n");
 		retrive_args1(f->esp, argv, 3);
 		f->eax = write(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_SEEK:
-		printf("seek\n");
 		retrive_args1(f->esp, argv, 2);
 		seek(argv[0], argv[1]);
 		break;
 	case SYS_TELL:
-		printf("tell\n");
 		retrive_args1(f->esp, argv, 1);
 		f->eax = tell(argv[0]);
 		break;
 	case SYS_CLOSE:
-		printf("close\n");
 		retrive_args1(f->esp, argv, 1);
 		close(argv[0]);
 		break;
 	case SYS_SLEEP:
-		printf("sleep\n");
 		retrive_args1(f->esp, argv, 1);
 		sleep(argv[0]);
 		break;
