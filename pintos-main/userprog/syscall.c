@@ -155,7 +155,8 @@ int open(const char *file_name)
 
 	struct thread *cur = thread_current();
 	struct file_descriptor *fd_entry = malloc(sizeof(struct file_descriptor));
-	fd_entry->fd = cur->next_fd++;
+	fd_entry->fd = cur->next_fd;
+	cur->next_fd++;
 	fd_entry->file = f;
 
 	list_push_back(&cur->file_descriptors, &fd_entry->elem);
