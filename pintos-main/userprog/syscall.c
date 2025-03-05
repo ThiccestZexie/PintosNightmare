@@ -47,56 +47,80 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 
 	int syscall_num = *(int *)f->esp;
 	printf("syscall number: %d\n", syscall_num);
-	retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
+	// retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
 
 	switch (syscall_num)
 	{
 	case SYS_HALT:
+		printf("halt\n");
 		halt();
 		break;
 	case SYS_EXIT:
+		printf("exit\n");
+		retrive_args1(f->esp, argv, 1);
 		exit(argv[0]);
 		break;
 	case SYS_EXEC:
+		printf("exec\n");
 		break;
 	case SYS_WAIT:
+		printf("wait\n");
 		break;
 	case SYS_CREATE:
-		create(argv[0], argv[1]);
+		printf("create\n");
+		retrive_args1(f->esp, argv, 2);
+		f->eax = create(argv[0], argv[1]);
 		break;
 	case SYS_REMOVE:
-		remove(argv[0]);
+		printf("remove\n");
+		retrive_args1(f->esp, argv, 1);
+		f->eax = remove(argv[0]);
 		break;
 	case SYS_OPEN:
-		open(argv[0]);
+		printf("open\n");
+		retrive_args1(f->esp, argv, 1);
+		f->eax = open(argv[0]);
 		break;
 	case SYS_FILESIZE:
-		filesize(argv[0]);
+		printf("filesize\n");
+		retrive_args1(f->esp, argv, 1);
+		f->eax = filesize(argv[0]);
 		break;
 	case SYS_READ:
-		read(argv[0], argv[1], argv[2]);
+		printf("read\n");
+		retrive_args1(f->esp, argv, 3);
+		f->eax = read(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_WRITE:
-		write(argv[0], argv[1], argv[2]);
+		printf("write\n");
+		retrive_args1(f->esp, argv, 3);
+		f->eax = write(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_SEEK:
+		printf("seek\n");
+		retrive_args1(f->esp, argv, 2);
 		seek(argv[0], argv[1]);
 		break;
 	case SYS_TELL:
-		tell(argv[0]);
+		printf("tell\n");
+		retrive_args1(f->esp, argv, 1);
+		f->eax = tell(argv[0]);
 		break;
 	case SYS_CLOSE:
+		printf("close\n");
+		retrive_args1(f->esp, argv, 1);
 		close(argv[0]);
 		break;
 	case SYS_SLEEP:
+		printf("sleep\n");
+		retrive_args1(f->esp, argv, 1);
 		sleep(argv[0]);
 		break;
 	default:
+		printf("system call not implemented\n");
+		exit(-1);
 		break;
 	}
-
-	printf("system call!\n");
-	thread_exit();
 }
 
 void halt(void)
@@ -259,13 +283,25 @@ void sleep(int millis)
 	timer_msleep(millis);
 }
 
+//
 void retrieve_args(void *esp, int *argv[])
 {
 	// assuming esp is pointing at the bottom of the stack as of pushing the args on top of it.
 	unsigned argc = *(unsigned *)(esp + 4);
-
-	for (int i = 1; i < argc; i++)
+	printf("argc: %d\n", argc);
+	for (int i = 1; i <= argc; i++)
 	{
 		argv[i] = *(int *)(esp + 4 * i);
+		printf("argv[%d]: %d\n", i, argv[i]);
+	}
+}
+
+void retrive_args1(void *esp, int *argv[], unsigned argc)
+{
+	int *arg_ptr = esp;
+	for (int i = 0; i < argc; i++)
+	{
+		arg_ptr += 1;
+		argv[i] = *arg_ptr;
 	}
 }
