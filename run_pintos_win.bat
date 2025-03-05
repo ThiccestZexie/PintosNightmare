@@ -1,0 +1,6 @@
+@echo off
+echo Building Pintos Docker image...
+docker build -t pintos-image .
+
+echo Running Pintos container...
+docker run --rm -it -v "%cd%\pintos-main:/pintos" --name pintos-container pintos-image
