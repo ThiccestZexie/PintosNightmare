@@ -10,7 +10,7 @@
 #include "threads/vaddr.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+#include <list.h>
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -25,20 +25,6 @@ void syscall_init(void)
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-//get file
-struct file* get_file(int fd);
-
-void halt(void);
-void exit(int status);
-bool create(const char *file, unsigned initial_size);
-int open(const char *file_name);
-void close(int fd);
-int write(int fd, const void *buffer, unsigned size);
-int read(int fd, void *buffer, unsigned size);
-bool remove(const char *file);
-int filesize(int fd);
-void sleep(int millis);
-
 static void syscall_handler(struct intr_frame *f UNUSED)
 {
 	// retrieve system call number
@@ -46,11 +32,10 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 
 	int syscall_num = *(int *)f->esp;
 	printf("syscall number: %d\n", syscall_num);
-	retrieve_args(f->esp, argv); // this gets argc from stack
+	retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
 
 	switch (syscall_num)
 	{
-
 	case SYS_HALT:
 		halt();
 		break;
@@ -65,21 +50,28 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		create(argv[0], argv[1]);
 		break;
 	case SYS_REMOVE:
+		remove(argv[0]);
 		break;
 	case SYS_OPEN:
 		open(argv[0]);
 		break;
 	case SYS_FILESIZE:
+		filesize(argv[0]);
 		break;
 	case SYS_READ:
+		read(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_WRITE:
+		write(argv[0], argv[1], argv[2]);
 		break;
 	case SYS_SEEK:
+		seek(argv[0], argv[1]);
 		break;
 	case SYS_TELL:
+		tell(argv[0]);
 		break;
 	case SYS_CLOSE:
+		close(argv[0]);
 		break;
 	case SYS_SLEEP:
 		sleep(argv[0]);
@@ -108,45 +100,64 @@ bool create(const char *file, unsigned initial_size)
 }
 
 /**
- * Returns the
+ * Returns the file associated with the given file descriptor.
  */
-struct file* get_file(int fd)
+struct file *get_file(int fd)
 {
+	struct thread *cur = thread_current();
 	if (fd < 2 || fd >= MAX_FDS)
 		return NULL;
 
-	return thread_current()->fds[fd];
+	struct list_elem *e;
+
+	for (e = list_begin(&cur->file_descriptors);
+		 e != list_end(&cur->file_descriptors);
+		 e = list_next(e))
+	{
+		struct file_descriptor *fd_entry = list_entry(e, struct file_descriptor, elem);
+		if (fd_entry->fd == fd)
+			return fd_entry->file;
+	}
+	return NULL;
 }
 
 int open(const char *file_name)
 {
 	struct file *f = filesys_open(file_name);
 	if (f == NULL)
-	{
 		return -1;
-	}
 
-	struct thread *this_thread = thread_current();
-	for (int i = 2; i < MAX_FDS; i++)
-	{
-		if (this_thread->fds[i] != NULL)
-			continue; // ALREADY OCCUPIED
+	struct thread *cur = thread_current();
+	struct file_descriptor *fd_entry = malloc(sizeof(struct file_descriptor));
+	fd_entry->fd = cur->next_fd++;
+	fd_entry->file = f;
 
-		this_thread->fds[i] = f;
-		return i; // found a free file descriptor
-	}
+	list_push_back(&cur->file_descriptors, &fd_entry->elem);
 
-	return -1; // unable to find a free file descriptor
+	return fd_entry->fd;
 }
 
 void close(int fd)
 {
 	struct thread *this_thread = thread_current();
-	if (this_thread->fds[fd] == NULL)
-		return; // already closed
+	if (fd < 2 || fd >= MAX_FDS)
+		return -1;
 
-	file_close(this_thread->fds[fd]);
-	this_thread->fds[fd] = NULL;
+	struct list_elem *e;
+
+	for (e = list_begin(&this_thread->file_descriptors);
+		 e != list_end(&this_thread->file_descriptors);
+		 e = list_next(e))
+	{
+		struct file_descriptor *fd_entry = list_entry(e, struct file_descriptor, elem);
+		if (fd_entry->fd == fd)
+		{
+			file_close(fd_entry->file);
+			list_remove(e);
+			free(fd_entry);
+			return;
+		}
+	}
 }
 
 int write(int fd, const void *buffer, unsigned size)
@@ -160,7 +171,7 @@ int write(int fd, const void *buffer, unsigned size)
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
-		// unopened file
+
 		return -1;
 
 	int bytes_written;
@@ -184,7 +195,7 @@ int read(int fd, void *buffer, unsigned size)
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
-		return -1; // unopened file
+		return -1;
 
 	return file_read(f, buffer, size);
 }
@@ -203,9 +214,29 @@ int filesize(int fd)
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
-		return -1; // unopened file
+		return -1;
 
 	return file_length(f);
+}
+
+void seek(int fd, unsigned position)
+{
+	struct file *f = get_file(fd);
+
+	if (f == NULL)
+		return -1;
+
+	file_seek(f, position);
+}
+
+unsigned tell(int fd)
+{
+	struct file *f = get_file(fd);
+
+	if (f == NULL)
+		return -1;
+
+	return file_tell(f);
 }
 
 void sleep(int millis)
