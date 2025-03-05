@@ -29,7 +29,7 @@ typedef int tid_t;
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63	   /* Highest priority. */
 
-/* A kernel thread or user process.
+/* A kernel thread or user process.c
 
 	Each thread structure is stored in its own 4 kB page.  The
 	thread structure itself sits at the very bottom of the page
