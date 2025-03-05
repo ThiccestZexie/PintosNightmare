@@ -32,7 +32,6 @@ void sleep(int millis);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 
-
 #define MAX_ARGS 3
 #define MAX_FDS 130
 
@@ -262,7 +261,9 @@ void sleep(int millis)
 
 void retrieve_args(void *esp, int *argv[])
 {
+	// assuming esp is pointing at the bottom of the stack as of pushing the args on top of it.
 	unsigned argc = *(unsigned *)(esp + 4);
+
 	for (int i = 1; i < argc; i++)
 	{
 		argv[i] = *(int *)(esp + 4 * i);
