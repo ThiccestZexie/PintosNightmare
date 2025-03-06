@@ -29,12 +29,20 @@ static bool load(const char *file_name, void (**eip)(void), void **esp);
 static void dump_stack(const void *esp);
 void push_args(void **esp, const unsigned argc, const char *argv[]);
 
+
+
 /* Starts a new thread running a user program loaded from
 	CMD_LINE.  The new thread may be scheduled (and may even exit)
 	before process_execute() returns.  Returns the new process's
 	thread id, or TID_ERROR if the thread cannot be created. */
 tid_t process_execute(const char *cmd_line)
 {
+	struct shared_mem *sm = malloc(sizeof(struct shared_mem)); // shared memory owned by child
+    struct thread *cur = thread_current(); // parent thread
+
+	sema_init(&sm->sema_exec, 0);
+	sema_init(&sm->sema_wait, 0);
+
 	char *cl_copy;
 	tid_t tid;
 
@@ -44,22 +52,30 @@ tid_t process_execute(const char *cmd_line)
 	if (cl_copy == NULL)
 		return TID_ERROR;
 	strlcpy(cl_copy, cmd_line, PGSIZE);
+	sm->cmd_line = cl_copy;
 
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create(cmd_line, PRI_DEFAULT, start_process, cl_copy);
+	tid = thread_create(cmd_line, PRI_DEFAULT, start_process, sm);
 	if (tid == TID_ERROR)
 		palloc_free_page(cl_copy);
+
+	sema_down(&sm->sema_exec);
+	sm->child_tid = tid;
+	
+	list_push_back(&cur->child_list, &sm->elem);
 	return tid;
 }
 
 /* A thread function that loads a user process and starts it
 	running. */
-static void start_process(void *cmd_line_)
+static void start_process(void *aux)
 {
-	char *cmd_line = cmd_line_;
+	struct shared_mem* sm = (struct shared_mem*)aux;
+	char *cmd_line = sm->cmd_line;
 	struct intr_frame if_;
-	struct thread *t = thread_current();
-
+	struct thread *t = thread_current(); 
+	bool success;
+	
 	/* Initialize interrupt frame and load executable. */
 	memset(&if_, 0, sizeof if_);
 	if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -79,19 +95,21 @@ static void start_process(void *cmd_line_)
 			break;
 	}
 
-	bool success;
 
 	// Note: load requires the file name only, not the entire cmd_line
 	success = load(t->name, &if_.eip, &if_.esp);
 
-	if (success) //-->
+	if (success){
 		push_args(&if_.esp, argc, argv);
-	// dump_stack(if_.esp);
+		t->parent_relation = sm;
+	}
+
 	/* If load failed, quit. */
 	palloc_free_page(cmd_line);
+	sema_up(&sm->sema_exec);
+	
 	if (!success)
 		thread_exit();
-
 	/* Start the user process by simulating a return from an
 		interrupt, implemented by intr_exit (in
 		threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -102,43 +120,7 @@ static void start_process(void *cmd_line_)
 	NOT_REACHED();
 }
 
-/**
- * push arguments onto the stack
- */
-void push_args(void **esp, const unsigned argc, const char *argv[])
-{
-	char *argv_addr[32]; // array of pointers to arguments
-	// push all the arguments onto stack
-	for (int i = argc - 1; i >= 0; i--) // skip the first argument which is the file name
-	{
-		*esp -= strlen(argv[i]) + 1;
-		memcpy(*esp, argv[i], strlen(argv[i]) + 1);
-		argv_addr[i] = *esp;
-	}
-	// padding for word align
-	*esp -= (size_t)*esp % 4;
 
-	// push null sentinel
-	argv_addr[argc] = NULL;
-	// push pointers to arguments onto stack
-	for (int i = argc; i >= 0; i--)
-	{
-		*esp -= sizeof(char *);
-		memcpy(*esp, &argv_addr[i], sizeof(char *));
-	}
-
-	// push argv
-	char **argv_ptr = *esp;
-	*esp -= sizeof(char **);
-	memcpy(*esp, &argv_ptr, sizeof(char **));
-	// argc
-	*esp -= sizeof(int);
-	memcpy(*esp, &argc, sizeof(int));
-
-	// push return address
-	*esp -= sizeof(void *);
-	memcpy(*esp, &argv[argc], sizeof(void *));
-}
 
 /* Waits for thread TID to die and returns its exit status.  If
 	it was terminated by the kernel (i.e. killed due to an
@@ -380,6 +362,44 @@ done:
 	return success;
 }
 
+/**
+ * push arguments onto the stack
+ */
+ void push_args(void **esp, const unsigned argc, const char *argv[])
+ {
+	 char *argv_addr[32]; // array of pointers to arguments
+	 // push all the arguments onto stack
+	 for (int i = argc - 1; i >= 0; i--) // skip the first argument which is the file name
+	 {
+		 *esp -= strlen(argv[i]) + 1;
+		 memcpy(*esp, argv[i], strlen(argv[i]) + 1);
+		 argv_addr[i] = *esp;
+	 }
+	 // padding for word align
+	 *esp -= (size_t)*esp % 4;
+ 
+	 // push null sentinel
+	 argv_addr[argc] = NULL;
+	 // push pointers to arguments onto stack
+	 for (int i = argc; i >= 0; i--)
+	 {
+		 *esp -= sizeof(char *);
+		 memcpy(*esp, &argv_addr[i], sizeof(char *));
+	 }
+ 
+	 // push argv
+	 char **argv_ptr = *esp;
+	 *esp -= sizeof(char **);
+	 memcpy(*esp, &argv_ptr, sizeof(char **));
+	 // argc
+	 *esp -= sizeof(int);
+	 memcpy(*esp, &argc, sizeof(int));
+ 
+	 // push return address
+	 *esp -= sizeof(void *);
+	 memcpy(*esp, &argv[argc], sizeof(void *));
+ }
+ 
 /* load() helpers. */
 
 static bool install_page(void *upage, void *kpage, bool writable);

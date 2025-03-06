@@ -1,20 +1,21 @@
+
 #include "userprog/syscall.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-
 #include "devices/input.h"
 #include "devices/timer.h"
 #include "devices/shutdown.h"
-
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include <list.h>
 #include <stdio.h>
 #include <syscall-nr.h>
 
+#include "userprog/process.h"
+
 static void syscall_handler(struct intr_frame *);
+
 void retrieve_args(void *esp, int *argv[]);
 void retrive_args1(void *esp, int *argv[], unsigned argc);
 // get file
@@ -22,6 +23,7 @@ struct file *get_file(int fd);
 
 void halt(void);
 void exit(int status);
+pid_t exec(const char *cmd_line);
 bool create(const char *file, unsigned initial_size);
 int open(const char *file_name);
 void close(int fd);
@@ -62,7 +64,8 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		exit(argv[0]);
 		break;
 	case SYS_EXEC:
-		printf("exec\n");
+		retrive_args1(f->esp, argv, 1);
+		f->eax = exec(argv[0]);
 		break;
 	case SYS_WAIT:
 		printf("wait\n");
@@ -122,6 +125,12 @@ void halt(void)
 void exit(int status)
 {
 	thread_exit();
+}
+
+pid_t exec(const char *cmd_line)
+{
+	validate_string(cmd_line);
+	return process_execute(cmd_line);
 }
 
 bool create(const char *file, unsigned initial_size)
