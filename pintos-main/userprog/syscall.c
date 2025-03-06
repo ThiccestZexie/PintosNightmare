@@ -16,6 +16,7 @@
 
 static void syscall_handler(struct intr_frame *);
 void retrieve_args(void *esp, int *argv[]);
+void retrive_args1(void *esp, int *argv[], unsigned argc);
 // get file
 struct file *get_file(int fd);
 
@@ -31,6 +32,9 @@ int filesize(int fd);
 void sleep(int millis);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
+void validate_pointer(void *ptr);
+void validate_buffer(void *buffer, unsigned size);
+void validate_string(const char *str);
 
 #define MAX_ARGS 3
 #define MAX_FDS 130
@@ -149,11 +153,16 @@ struct file *get_file(int fd)
 
 int open(const char *file_name)
 {
+	struct thread *cur = thread_current();
+	if (cur->next_fd >= MAX_FDS)
+		return -1;
+
+	validate_string(file_name);
+
 	struct file *f = filesys_open(file_name);
 	if (f == NULL)
 		return -1;
 
-	struct thread *cur = thread_current();
 	struct file_descriptor *fd_entry = malloc(sizeof(struct file_descriptor));
 	fd_entry->fd = cur->next_fd;
 	cur->next_fd++;
@@ -189,7 +198,7 @@ void close(int fd)
 
 int write(int fd, const void *buffer, unsigned size)
 {
-
+	validate_buffer(buffer, size);
 	if (fd == 1)
 	{
 		putbuf(buffer, size);
@@ -218,7 +227,7 @@ int read(int fd, void *buffer, unsigned size)
 		}
 		return size;
 	}
-
+	validate_buffer(buffer, size);
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
@@ -286,10 +295,48 @@ void retrieve_args(void *esp, int *argv[])
 
 void retrive_args1(void *esp, int *argv[], unsigned argc)
 {
+
+	/**
+	 * arg3
+	 * arg2
+	 * arg1
+	 * Number for syscall  <- esp
+	 * Theroetically speaking we could just instantly take argc
+	 */
 	int *arg_ptr = esp;
 	for (int i = 0; i < argc; i++)
 	{
 		arg_ptr += 1;
+		validate_pointer(arg_ptr);
 		argv[i] = *arg_ptr;
+	}
+}
+
+void validate_pointer(void *ptr)
+{
+	if (ptr == NULL || !is_user_vaddr(ptr) || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+	{
+		exit(-1);
+	}
+}
+
+void validate_buffer(void *buffer, unsigned size)
+{
+	const char *buf = (const char *)buffer;
+	// if we valdiate the start and end of the buffer the entire buff should be safe.
+	validate_pointer(buf);
+	validate_pointer(buf + size);
+}
+
+void validate_string(const char *str)
+{
+	if (str == NULL)
+		exit(-1);
+
+	validate_pointer(str);
+	while (*str != '\0')
+	{
+		str++;
+		validate_pointer(str);
 	}
 }

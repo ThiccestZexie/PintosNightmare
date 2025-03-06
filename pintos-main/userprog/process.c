@@ -86,7 +86,7 @@ static void start_process(void *cmd_line_)
 
 	if (success) //-->
 		push_args(&if_.esp, argc, argv);
-
+	// dump_stack(if_.esp);
 	/* If load failed, quit. */
 	palloc_free_page(cmd_line);
 	if (!success)
