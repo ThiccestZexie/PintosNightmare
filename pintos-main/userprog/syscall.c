@@ -177,7 +177,7 @@ void close(int fd)
 {
 	struct thread *this_thread = thread_current();
 	if (fd < 2 || fd >= MAX_FDS)
-		return -1;
+		return;
 
 	struct list_elem *e;
 
@@ -207,27 +207,24 @@ int write(int fd, const void *buffer, unsigned size)
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
-
 		return -1;
 
-	int bytes_written;
-
-	bytes_written = file_write(f, buffer, size);
-
-	return bytes_written;
+	return (int *)file_write(f, buffer, size);
 }
 
 int read(int fd, void *buffer, unsigned size)
 {
+	validate_buffer(buffer, size);
 	if (fd == 0)
 	{
-		for (int i = 0; i < size; i++)
+		for (unsigned i = 0; i < size; i++)
 		{
-			((char *)buffer)[i] = input_getc();
+			*(int *)(buffer + i) = input_getc();
+			// Echo it back :D
+			putbuf(buffer + i, 1);
 		}
-		return size;
+		return sizeof(char) * size;
 	}
-	validate_buffer(buffer, size);
 	struct file *f = get_file(fd);
 
 	if (f == NULL)
@@ -258,7 +255,7 @@ int filesize(int fd)
 void seek(int fd, unsigned position)
 {
 	struct file *f = get_file(fd);
-
+	// File_seek already does this...
 	if (f == NULL)
 		return -1;
 
@@ -322,10 +319,10 @@ void validate_pointer(void *ptr)
 
 void validate_buffer(void *buffer, unsigned size)
 {
-	const char *buf = (const char *)buffer;
 	// if we valdiate the start and end of the buffer the entire buff should be safe.
+	const char *buf = (const char *)buffer;
 	validate_pointer(buf);
-	validate_pointer(buf + size);
+	validate_pointer(buf + size - 1);
 }
 
 void validate_string(const char *str)
