@@ -466,8 +466,9 @@ static void init_thread(struct thread *t, const char *name, int priority)
 #ifdef USERPROG
 	list_init(&t->file_descriptors);
 	t->next_fd = 2;
-	list_init(&t->child_list);
-	//sema_init(&t->parent_relation.sema_exec, 0);
+	list_init(&t->child_relations);
+
+
 #endif
 	old_level = intr_disable();
 	list_push_back(&all_list, &t->allelem);

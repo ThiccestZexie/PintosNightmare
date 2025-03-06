@@ -30,7 +30,6 @@ static void dump_stack(const void *esp);
 void push_args(void **esp, const unsigned argc, const char *argv[]);
 
 
-
 /* Starts a new thread running a user program loaded from
 	CMD_LINE.  The new thread may be scheduled (and may even exit)
 	before process_execute() returns.  Returns the new process's
@@ -62,7 +61,8 @@ tid_t process_execute(const char *cmd_line)
 	sema_down(&sm->sema_exec);
 	sm->child_tid = tid;
 	
-	list_push_back(&cur->child_list, &sm->elem);
+	list_push_back(&cur->child_relations, &sm->elem);
+
 	return tid;
 }
 
@@ -130,12 +130,32 @@ static void start_process(void *aux)
 	immediately, without waiting.
 
 	This function will be implemented in problem 2-2.  For now, it
-	does nothing. */
+	does nothing. 
+	
+	Case 1: 
+	Child exits before parent waits
+	Case 2:
+	Parent waits before child exits
+	Case 3:
+	Parent calls wait after child exits
+	
+	*/
 int process_wait(tid_t child_tid UNUSED)
 {
-	for (;;)
-	{
+	// struct thread *cur = thread_current();
+	// if (child_tid == cur->tid)
+	// {
+	// 	return TID_ERROR;
+	// }
+
+	// if (child_tid < 0)
+	// {
+	// 	return TID_ERROR;
+	// }
+	for(;;){
+		
 	}
+
 }
 
 /* Free the current process's resources. */
@@ -399,7 +419,7 @@ done:
 	 *esp -= sizeof(void *);
 	 memcpy(*esp, &argv[argc], sizeof(void *));
  }
- 
+
 /* load() helpers. */
 
 static bool install_page(void *upage, void *kpage, bool writable);

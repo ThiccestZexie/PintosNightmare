@@ -68,7 +68,8 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		f->eax = exec(argv[0]);
 		break;
 	case SYS_WAIT:
-		printf("wait\n");
+		// retrive_args1(f->esp, argv, 1);
+		// f->eax = wait(argv[0]);
 		break;
 	case SYS_CREATE:
 		retrive_args1(f->esp, argv, 2);

@@ -127,7 +127,7 @@ struct thread
 	int next_fd;
 	struct list file_descriptors;
 	
-	struct list child_list; //TODO: INIT LIST
+	struct list child_relations; 
 	struct shared_mem* parent_relation; 
 #endif
 
