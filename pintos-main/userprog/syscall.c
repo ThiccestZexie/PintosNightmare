@@ -32,9 +32,9 @@ int filesize(int fd);
 void sleep(int millis);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
-void validate_pointer(void *ptr);
-void validate_buffer(void *buffer, unsigned size);
-void validate_string(const char *str);
+// void validate_pointer(void *ptr);
+// void validate_buffer(void *buffer, unsigned size);
+// void validate_string(const char *str);
 
 #define MAX_ARGS 3
 #define MAX_FDS 130
@@ -157,7 +157,7 @@ int open(const char *file_name)
 	if (cur->next_fd >= MAX_FDS)
 		return -1;
 
-	validate_string(file_name);
+//	validate_string(file_name);
 
 	struct file *f = filesys_open(file_name);
 	if (f == NULL)
@@ -198,7 +198,7 @@ void close(int fd)
 
 int write(int fd, const void *buffer, unsigned size)
 {
-	validate_buffer(buffer, size);
+	//validate_buffer(buffer, size);
 	if (fd == 1)
 	{
 		putbuf(buffer, size);
@@ -214,7 +214,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 int read(int fd, void *buffer, unsigned size)
 {
-	validate_buffer(buffer, size);
+//	validate_buffer(buffer, size);
 	if (fd == 0)
 	{
 		for (unsigned i = 0; i < size; i++)
@@ -256,8 +256,13 @@ void seek(int fd, unsigned position)
 {
 	struct file *f = get_file(fd);
 	// File_seek already does this...
-	if (f == NULL)
-		return;
+
+	// TODO: SHOULD IT FAIL SILENTLY?
+	// if (f == NULL)
+	// 	return;
+
+	ASSERT(f != NULL);
+
 	if (position > file_length(f))
 		return;
 	file_seek(f, position);
@@ -275,7 +280,7 @@ unsigned tell(int fd)
 
 void sleep(int millis)
 {
-	timer_msleep(millis);
+	timer_sleep(millis);
 }
 
 //
@@ -305,36 +310,36 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 	for (int i = 0; i < argc; i++)
 	{
 		arg_ptr += 1;
-		validate_pointer(arg_ptr);
+	//	validate_pointer(arg_ptr);
 		argv[i] = *arg_ptr;
 	}
 }
 
-void validate_pointer(void *ptr)
-{
-	if (ptr == NULL || !is_user_vaddr(ptr) || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
-	{
-		exit(-1);
-	}
-}
+// void validate_pointer(void *ptr)
+// {
+// 	if (ptr == NULL || !is_user_vaddr(ptr) || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+// 	{
+// 		exit(-1);
+// 	}
+// }
 
-void validate_buffer(void *buffer, unsigned size)
-{
-	// if we valdiate the start and end of the buffer the entire buff should be safe.
-	const char *buf = (const char *)buffer;
-	validate_pointer(buf);
-	validate_pointer(buf + size - 1);
-}
+// void validate_buffer(void *buffer, unsigned size)
+// {
+// 	// if we valdiate the start and end of the buffer the entire buff should be safe.
+// 	const char *buf = (const char *)buffer;
+// 	validate_pointer(buf);
+// 	validate_pointer(buf + size - 1);
+// }
 
-void validate_string(const char *str)
-{
-	if (str == NULL)
-		exit(-1);
+// void validate_string(const char *str)
+// {
+// 	if (str == NULL)
+// 		exit(-1);
 
-	validate_pointer(str);
-	while (*str != '\0')
-	{
-		str++;
-		validate_pointer(str);
-	}
-}
+// 	validate_pointer(str);
+// 	while (*str != '\0')
+// 	{
+// 		str++;
+// 		validate_pointer(str);
+// 	}
+// }

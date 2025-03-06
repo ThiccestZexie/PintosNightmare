@@ -1,6 +1,6 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-#define USERPROG // FIXME: Added by me DANIEL
+//#define USERPROG // FIXME: Added by me DANIEL
 
 #include <debug.h>
 #include <list.h>
@@ -114,6 +114,7 @@ struct thread
 	// int fds[MAX_FDS];  /* Unique FDs for each thread.*/
 #endif
 
+	int thread_sleep_time; 
 	/* Owned by thread.c. */
 	unsigned magic; /* Detects stack overflow. */
 };
