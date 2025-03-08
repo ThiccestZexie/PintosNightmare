@@ -12,8 +12,6 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 
-#include "userprog/process.h"
-
 static void syscall_handler(struct intr_frame *);
 
 void retrieve_args(void *esp, int *argv[]);
@@ -37,6 +35,7 @@ unsigned tell(int fd);
 void validate_pointer(void *ptr);
 void validate_buffer(void *buffer, unsigned size);
 void validate_string(const char *str);
+void validate_set_args(void *esp, int amount);
 
 #define MAX_ARGS 3
 #define MAX_FDS 130
@@ -46,14 +45,28 @@ void syscall_init(void)
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void syscall_handler(struct intr_frame *f UNUSED)
+void validate_set_args(void *esp, int amount)
+{
+	// check all bytes of the arguments
+	int validate = amount * 8;
+	for (int i = 0; i < validate; i++)
+	{
+		validate_pointer(esp + i);
+	}
+}
+
+static void syscall_handler(struct intr_frame *f)
 {
 	// retrieve system call number
-	int *argv[MAX_ARGS];
+	int argv[MAX_ARGS];
+
+	for (int i = 0; i < 4; i++)
+	{
+		validate_pointer(f->esp + i);
+	}
 
 	int syscall_num = *(int *)f->esp;
 	// retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
-
 	switch (syscall_num)
 	{
 	case SYS_HALT:
@@ -112,7 +125,6 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		sleep(argv[0]);
 		break;
 	default:
-		printf("system call not implemented\n");
 		exit(-1);
 		break;
 	}
@@ -146,6 +158,7 @@ int wait(pid_t pid)
 
 bool create(const char *file, unsigned initial_size)
 {
+	validate_string(file);
 	return filesys_create(file, initial_size);
 }
 
@@ -170,14 +183,14 @@ struct file *get_file(int fd)
 	}
 	return NULL;
 }
-
+// Have to be able to open the same file and assign a new file descriptor
 int open(const char *file_name)
 {
+
+	validate_string(file_name);
 	struct thread *cur = thread_current();
 	if (cur->next_fd >= MAX_FDS)
 		return -1;
-
-	validate_string(file_name);
 
 	struct file *f = filesys_open(file_name);
 	if (f == NULL)
@@ -229,7 +242,7 @@ int write(int fd, const void *buffer, unsigned size)
 	if (f == NULL)
 		return -1;
 
-	return (int *)file_write(f, buffer, size);
+	return file_write(f, buffer, size);
 }
 
 int read(int fd, void *buffer, unsigned size)
@@ -303,19 +316,6 @@ void sleep(int millis)
 	timer_msleep(millis);
 }
 
-//
-void retrieve_args(void *esp, int *argv[])
-{
-	// assuming esp is pointing at the bottom of the stack as of pushing the args on top of it.
-	unsigned argc = *(unsigned *)(esp + 4);
-	printf("argc: %d\n", argc);
-	for (int i = 1; i <= argc; i++)
-	{
-		argv[i] = *(int *)(esp + 4 * i);
-		printf("argv[%d]: %d\n", i, argv[i]);
-	}
-}
-
 void retrive_args1(void *esp, int *argv[], unsigned argc)
 {
 
@@ -326,21 +326,27 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 	 * Number for syscall  <- esp
 	 * Theroetically speaking we could just instantly take argc
 	 */
-	int *arg_ptr = esp;
-	for (int i = 0; i < argc; i++)
+
+	// Validate all bytes of the arguments on the stack.
+	validate_set_args(esp, argc);
+	int *arg_ptr = (int *)esp;
+	for (unsigned i = 0; i < argc; i++)
 	{
+		// Validate each pointer to the argument.
+		validate_pointer((void *)(arg_ptr + 1));
 		arg_ptr += 1;
-		validate_pointer(arg_ptr);
 		argv[i] = *arg_ptr;
 	}
 }
 
 void validate_pointer(void *ptr)
 {
-	if (ptr == NULL || !is_user_vaddr(ptr) || pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
-	{
+	if (ptr == NULL)
 		exit(-1);
-	}
+	if (!is_user_vaddr(ptr))
+		exit(-1);
+	if (pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+		exit(-1);
 }
 
 void validate_buffer(void *buffer, unsigned size)
@@ -349,17 +355,21 @@ void validate_buffer(void *buffer, unsigned size)
 	const char *buf = (const char *)buffer;
 	validate_pointer(buf);
 	validate_pointer(buf + size - 1);
+	// for (unsigned i = 0; i < size; i++)
+	// {
+	// 	validate_pointer((void *)(buf + i));
+	// }
 }
 
 void validate_string(const char *str)
 {
 	if (str == NULL)
 		exit(-1);
-
-	validate_pointer(str);
+	// Validate first pointer and then every subsequent byte until the terminator.
+	validate_pointer((void *)str);
 	while (*str != '\0')
 	{
 		str++;
-		validate_pointer(str);
+		validate_pointer((void *)str);
 	}
 }

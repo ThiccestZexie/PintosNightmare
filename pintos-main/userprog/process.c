@@ -11,6 +11,7 @@
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "lib/string.h"
 #include "lib/stdio.h"
@@ -49,19 +50,22 @@ tid_t process_execute(const char *cmd_line)
 	cl_copy = palloc_get_page(0);
 	if (cl_copy == NULL)
 		return TID_ERROR;
+
 	strlcpy(cl_copy, cmd_line, PGSIZE);
 	sm->cmd_line = cl_copy;
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(sm->cmd_line, PRI_DEFAULT, start_process, sm);
-	if (tid == TID_ERROR)
-		palloc_free_page(cl_copy);
-
 	sema_down(&sm->sema_exec);
-	sm->child_tid = tid;
+
+	if (tid == TID_ERROR || !sm->child_alive)
+	{
+		return TID_ERROR;
+	}
 
 	list_push_back(&cur->child_relations, &sm->elem);
-
+	palloc_free_page(cl_copy);
+	sm->child_tid = tid;
 	return tid;
 }
 
@@ -96,19 +100,21 @@ static void start_process(void *aux)
 
 	// Note: load requires the file name only, not the entire cmd_line
 	success = load(t->name, &if_.eip, &if_.esp);
-
+	sm->child_alive = success;
+	t->parent_relation = sm;
 	if (success)
 	{
 		push_args(&if_.esp, argc, argv);
-		t->parent_relation = sm;
+		sema_up(&sm->sema_exec); // done loading!
+	}
+	else
+	{
+		palloc_free_page(argv);
+		t->tid = TID_ERROR;
+		sema_up(&sm->sema_exec); // done loading!
+		exit(-1);
 	}
 
-	/* If load failed, quit. */
-	palloc_free_page(cmd_line);
-	sema_up(&sm->sema_exec);
-
-	if (!success)
-		thread_exit();
 	/* Start the user process by simulating a return from an
 		interrupt, implemented by intr_exit (in
 		threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -137,19 +143,10 @@ static void start_process(void *aux)
 	Parent calls wait after child exits
 
 	*/
-int process_wait(tid_t child_tid UNUSED)
+int process_wait(tid_t child_tid)
 {
 	struct thread *cur = thread_current();
-	int exit_status = TID_ERROR;
-	if (child_tid == cur->tid)
-	{
-		return TID_ERROR;
-	}
-
-	if (child_tid < 0)
-	{
-		return TID_ERROR;
-	}
+	int exit_status = -1;
 
 	struct list_elem *e;
 	struct shared_mem *sm = NULL;
@@ -163,7 +160,8 @@ int process_wait(tid_t child_tid UNUSED)
 			// get exit status
 			exit_status = sm->exit_status;
 			// remove child from my child list
-			list_remove(e);
+			list_remove(&sm->elem);
+			// free shared memory
 			free(sm);
 
 			return exit_status;
@@ -187,10 +185,26 @@ void process_exit(void)
 		fd_entry = list_entry(e, struct file_descriptor, elem);
 		file_close(fd_entry->file);
 		list_remove(e);
-		free(fd_entry);
 	}
+	// Signal all  children that i am dying
 
-	sema_up(&cur->parent_relation->sema_wait);
+	struct shared_mem *sm;
+	for (e = list_begin(&cur->child_relations); e != list_end(&cur->child_relations); e = list_next(e))
+	{
+		sm = list_entry(e, struct shared_mem, elem);
+		sm->parent_alive = false;
+		sema_up(&sm->sema_wait);
+	}
+	// if we have a parent sema up them.
+	if (cur->parent_relation != NULL)
+	{
+		cur->parent_relation->child_alive = false;
+		sema_up(&cur->parent_relation->sema_wait);
+	}
+	else // if we don't have a parent, free the shared memory
+	{
+		free(cur->parent_relation);
+	}
 
 	uint32_t *pd;
 	/* Destroy the current process's page directory and switch back

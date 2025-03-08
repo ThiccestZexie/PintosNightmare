@@ -468,7 +468,6 @@ static void init_thread(struct thread *t, const char *name, int priority)
 	t->next_fd = 2;
 	list_init(&t->child_relations);
 
-
 #endif
 	old_level = intr_disable();
 	list_push_back(&all_list, &t->allelem);
