@@ -88,19 +88,21 @@ typedef int tid_t;
 	only because they are mutually exclusive: only a thread in the
 	ready state is on the run queue, whereas only a thread in the
 	blocked state is on a semaphore wait list. */
-	struct shared_mem {
-		char* cmd_line;
-		tid_t child_tid;
-		struct list_elem elem;
+struct shared_mem
+{
+	char *cmd_line;
+	tid_t child_tid;
+	int exit_status; // childs exit status
+	struct list_elem elem;
 
-		// false means exited
-		// true means not exited
-		bool child_alive;
-		bool parent_alive;
-		
-		struct semaphore sema_exec; // so daddy can wait for me to finish spawning
-		struct semaphore sema_wait; // so dadddy can wait for me to die ;(
-	};
+	// false means exited
+	// true means not exited
+	bool child_alive;
+	bool parent_alive;
+
+	struct semaphore sema_exec; // so daddy can wait for me to finish spawning
+	struct semaphore sema_wait; // so dadddy can wait for me to die ;(
+};
 
 struct file_descriptor
 {
@@ -126,12 +128,12 @@ struct thread
 	uint32_t *pagedir; /* Page directory. */
 	int next_fd;
 	struct list file_descriptors;
-	
-	struct list child_relations; 
-	struct shared_mem* parent_relation; 
+
+	struct list child_relations;
+	struct shared_mem *parent_relation;
 #endif
 
-	int thread_sleep_time; 
+	int thread_sleep_time;
 	/* Owned by thread.c. */
 	unsigned magic; /* Detects stack overflow. */
 };

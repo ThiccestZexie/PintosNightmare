@@ -68,8 +68,8 @@ static void syscall_handler(struct intr_frame *f UNUSED)
 		f->eax = exec(argv[0]);
 		break;
 	case SYS_WAIT:
-		// retrive_args1(f->esp, argv, 1);
-		// f->eax = wait(argv[0]);
+		retrive_args1(f->esp, argv, 1);
+		f->eax = wait(argv[0]);
 		break;
 	case SYS_CREATE:
 		retrive_args1(f->esp, argv, 2);
@@ -125,13 +125,23 @@ void halt(void)
 
 void exit(int status)
 {
-	thread_exit();
+	struct thread *cur = thread_current();
+	if (cur->parent_relation != NULL)
+	{
+		cur->parent_relation->exit_status = status;
+	}
+	thread_exit(); // As long as USERPROG is defined, this will call process_exit
 }
 
 pid_t exec(const char *cmd_line)
 {
 	validate_string(cmd_line);
 	return process_execute(cmd_line);
+}
+
+int wait(pid_t pid)
+{
+	return process_wait(pid);
 }
 
 bool create(const char *file, unsigned initial_size)
