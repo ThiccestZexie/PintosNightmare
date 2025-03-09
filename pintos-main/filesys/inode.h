@@ -3,8 +3,35 @@
 
 #include "devices/block.h"
 #include "filesys/off_t.h"
-
 #include <stdbool.h>
+
+#include <debug.h>
+#include <list.h>
+#include <round.h>
+#include <string.h>
+#include "threads/synch.h"
+
+/* On-disk inode.
+	Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+struct inode_disk {
+	block_sector_t start; /* First data sector. */
+	off_t length;			 /* File size in bytes. */
+	unsigned magic;		 /* Magic number. */
+	uint32_t unused[125]; /* Not used. */
+};
+
+/* In-memory inode. */
+struct inode {
+	struct list_elem elem;	/* Element in inode list. */
+	block_sector_t sector;	/* Sector number of disk location. */
+	int open_cnt;				/* Number of openers. */
+	bool removed;				/* True if deleted, false otherwise. */
+	struct inode_disk data; /* Inode content. */
+	
+	unsigned current_readers; // :) the actual read count of how many are reading the given file currentyly concurrently actually given tfile
+	struct semaphore writers_lock; 
+	struct semaphore readers_lock;
+};
 
 struct bitmap;
 
