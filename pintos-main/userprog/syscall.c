@@ -345,7 +345,7 @@ void validate_pointer(void *ptr)
 	{
 		exit(-1);
 	}
-	if (!is_user_vaddr(ptr))
+	if (is_kernel_vaddr(ptr))
 	{
 		exit(-1);
 	}
