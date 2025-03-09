@@ -328,12 +328,12 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 	 */
 
 	// Validate all bytes of the arguments on the stack.
-	validate_set_args(esp, argc);
+	validate_set_args(esp + 4, argc);
 	int *arg_ptr = (int *)esp;
 	for (unsigned i = 0; i < argc; i++)
 	{
 		// Validate each pointer to the argument.
-		validate_pointer((void *)(arg_ptr + 1));
+		validate_pointer((void *)(arg_ptr));
 		arg_ptr += 1;
 		argv[i] = *arg_ptr;
 	}
@@ -342,11 +342,23 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 void validate_pointer(void *ptr)
 {
 	if (ptr == NULL)
+	{
 		exit(-1);
+	}
 	if (!is_user_vaddr(ptr))
+	{
 		exit(-1);
-	if (pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
+	}
+
+	void *page = pagedir_get_page(thread_current()->pagedir, ptr);
+	if (page == NULL)
+	{
 		exit(-1);
+	}
+	if (ptr < (void *)0x08048000)
+	{
+		exit(-1);
+	}
 }
 
 void validate_buffer(void *buffer, unsigned size)
@@ -366,10 +378,10 @@ void validate_string(const char *str)
 	if (str == NULL)
 		exit(-1);
 	// Validate first pointer and then every subsequent byte until the terminator.
-	validate_pointer((void *)str);
+	validate_pointer(str);
 	while (*str != '\0')
 	{
 		str++;
-		validate_pointer((void *)str);
+		validate_pointer(str);
 	}
 }
