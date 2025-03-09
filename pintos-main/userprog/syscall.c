@@ -128,6 +128,7 @@ static void syscall_handler(struct intr_frame *f)
 		exit(-1);
 		break;
 	}
+	// sleep(1);
 }
 
 void halt(void)
@@ -138,10 +139,9 @@ void halt(void)
 void exit(int status)
 {
 	struct thread *cur = thread_current();
-	if (cur->parent_relation != NULL)
-	{
-		cur->parent_relation->exit_status = status;
-	}
+	
+	cur->parent_relation->exit_status = status;
+
 	thread_exit(); // As long as USERPROG is defined, this will call process_exit
 }
 

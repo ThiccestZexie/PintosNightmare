@@ -100,6 +100,7 @@ struct shared_mem
 	bool child_alive;
 	bool parent_alive;
 
+
 	struct semaphore sema_exec; // so daddy can wait for me to finish spawning
 	struct semaphore sema_wait; // so dadddy can wait for me to die ;(
 };
@@ -128,7 +129,9 @@ struct thread
 	uint32_t *pagedir; /* Page directory. */
 	int next_fd;
 	struct list file_descriptors;
-
+	
+	bool waiting; 
+	
 	struct list child_relations;
 	struct shared_mem *parent_relation;
 #endif

@@ -43,11 +43,11 @@ tid_t process_execute(const char *cmd_line)
 	sema_init(&sm->sema_wait, 0);
 	sm->exit_status = -1;
 	sm->child_tid = TID_ERROR;
-	sm->child_alive = true;
+	sm->child_alive = false;
 	sm->parent_alive = true;
 
 	char *cl_copy;
-	tid_t tid;
+	tid_t tid = -1;
 
 	/* Make a copy of CMD_LINE.
 		Otherwise there's a race between the caller and load(). */
@@ -60,14 +60,22 @@ tid_t process_execute(const char *cmd_line)
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(sm->cmd_line, PRI_DEFAULT, start_process, sm);
-	sema_down(&sm->sema_exec);
-
-	if (tid == TID_ERROR || !sm->child_alive)
+	if (tid == TID_ERROR)
 	{
+		palloc_free_page(cl_copy);
+		free(sm);
 		return TID_ERROR;
 	}
+	sema_down(&sm->sema_exec);
+	
 
+	if(sm->child_alive == false){
+		palloc_free_page(cl_copy);
+		return TID_ERROR;
+	}
 	list_push_back(&cur->child_relations, &sm->elem);
+	
+
 	palloc_free_page(cl_copy);
 	sm->child_tid = tid;
 	return tid;
@@ -106,14 +114,17 @@ static void start_process(void *aux)
 	success = load(t->name, &if_.eip, &if_.esp);
 	sm->child_alive = success;
 	t->parent_relation = sm;
+
 	if (success)
-	{
+	{	
+		t->parent_relation->child_alive = true;
 		push_args(&if_.esp, argc, argv);
 		sema_up(&sm->sema_exec); // done loading!
 	}
 	else
 	{
 		palloc_free_page(argv);
+		// t->tid = TID_ERROR;
 		sema_up(&sm->sema_exec); // done loading!
 		exit(-1);
 	}
@@ -149,6 +160,12 @@ static void start_process(void *aux)
 int process_wait(tid_t child_tid)
 {
 	struct thread *cur = thread_current();
+
+	if (cur->waiting)
+	{
+		return -1;
+	}
+
 	int exit_status = -1;
 
 	struct list_elem *e;
@@ -158,8 +175,17 @@ int process_wait(tid_t child_tid)
 		sm = list_entry(e, struct shared_mem, elem);
 		if (sm->child_tid == child_tid)
 		{
-			//  sema down
+			if (sm->child_alive == false)
+			{
+				exit_status = sm->exit_status;
+				list_remove(&sm->elem);
+				free(sm);
+				return exit_status;
+			}
+			cur->waiting = true;
+			// sema down
 			sema_down(&sm->sema_wait);
+			cur->waiting = false;
 			// get exit status
 			exit_status = sm->exit_status;
 			// remove child from my child list
