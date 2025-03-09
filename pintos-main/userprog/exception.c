@@ -88,7 +88,7 @@ static void kill(struct intr_frame *f)
 			f->vec_no,
 			intr_name(f->vec_no));
 		intr_dump_frame(f);
-		exit(-1);
+		thread_exit();
 
 	case SEL_KCSEG:
 		/* Kernel's code segment, which indicates a kernel bug.

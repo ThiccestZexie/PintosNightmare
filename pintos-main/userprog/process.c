@@ -41,6 +41,10 @@ tid_t process_execute(const char *cmd_line)
 
 	sema_init(&sm->sema_exec, 0);
 	sema_init(&sm->sema_wait, 0);
+	sm->exit_status = -1;
+	sm->child_tid = TID_ERROR;
+	sm->child_alive = true;
+	sm->parent_alive = true;
 
 	char *cl_copy;
 	tid_t tid;
@@ -110,7 +114,6 @@ static void start_process(void *aux)
 	else
 	{
 		palloc_free_page(argv);
-		t->tid = TID_ERROR;
 		sema_up(&sm->sema_exec); // done loading!
 		exit(-1);
 	}
