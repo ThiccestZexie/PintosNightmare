@@ -1,30 +1,36 @@
 #!/bin/bash
-# exit on error
-set -e
 
 # Define a cleanup function
 cleanup() {
-    # Kill the Pintos process if it's still running
-    kill $pintos_pid 2>/dev/null || true
+    # Kill the Pintos process
+    kill $pintos_pid
 }
+
+# Set the trap
 trap cleanup SIGINT
+
+# build the test program from tests/userprog into current directory
+# and run it with pintos
+# Usage: ./lab5.sh [test_name] [pintos_options]
+
+# Example using gdb:
+# ./lab5.sh exec-once --gdb
+
+# exit on error
+set -e
 
 # compile
 make -j
 
-# Get the test name from the first argument; additional arguments are passed as options
-TEST_NAME=$1
-shift
+# run pintos in the background and get its PID
+pintos $2 -v -k -T 60 --qemu --filesys-size=2 -p build/tests/userprog/$1 -a $1 -- -q -f run $1 &
 
-# Run pintos with the given test.
-# Adjust the following command as necessary to match your Pintos run interface.
-pintos -v -- run "build/tests/userprog/${TEST_NAME}.out" "$@" &
+# Save the PID of the Pintos process
 pintos_pid=$!
 
 # Wait for the Pintos process to finish
 wait $pintos_pid
 
 echo
-echo "Test output: build/tests/userprog/${TEST_NAME}.output"
-echo "Test result: build/tests/userprog/${TEST_NAME}.result"
-```  
+echo "Test output: userprog/build/tests/userprog/$1.output"
+echo "Test result: userprog/build/tests/userprog/$1.result"
