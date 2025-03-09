@@ -248,6 +248,7 @@ int write(int fd, const void *buffer, unsigned size)
 int read(int fd, void *buffer, unsigned size)
 {
 	validate_buffer(buffer, size);
+
 	if (fd == 0)
 	{
 		for (unsigned i = 0; i < size; i++)
@@ -341,6 +342,7 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 
 void validate_pointer(void *ptr)
 {
+	void *page = pagedir_get_page(thread_current()->pagedir, ptr);
 	if (ptr == NULL)
 	{
 		exit(-1);
@@ -349,8 +351,6 @@ void validate_pointer(void *ptr)
 	{
 		exit(-1);
 	}
-
-	void *page = pagedir_get_page(thread_current()->pagedir, ptr);
 	if (page == NULL)
 	{
 		exit(-1);
@@ -365,12 +365,12 @@ void validate_buffer(void *buffer, unsigned size)
 {
 	// if we valdiate the start and end of the buffer the entire buff should be safe.
 	const char *buf = (const char *)buffer;
-	validate_pointer(buf);
-	validate_pointer(buf + size - 1);
-	// for (unsigned i = 0; i < size; i++)
-	// {
-	// 	validate_pointer((void *)(buf + i));
-	// }
+	// validate_pointer(buf);
+	// validate_pointer(buf + size);
+	for (unsigned i = 0; i < size; i++)
+	{
+		validate_pointer((void *)(buf + i));
+	}
 }
 
 void validate_string(const char *str)
