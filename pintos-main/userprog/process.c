@@ -36,15 +36,17 @@ void push_args(void **esp, const unsigned argc, const char *argv[]);
 	thread id, or TID_ERROR if the thread cannot be created. */
 tid_t process_execute(const char *cmd_line)
 {
-	struct shared_mem *sm = malloc(sizeof(struct shared_mem)); // shared memory owned by child
-	struct thread *cur = thread_current();					   // parent thread
+	struct shared_mem *sm = (struct shared_mem* )malloc(sizeof(struct shared_mem)); // shared memory owned by child
+	struct thread *cur = thread_current();			  // parent thread
 
 	sema_init(&sm->sema_exec, 0);
 	sema_init(&sm->sema_wait, 0);
+	lock_init(&sm->alive_count_lock);
+	
 	sm->exit_status = -1;
 	sm->child_tid = TID_ERROR;
-	sm->child_alive = false;
-	sm->parent_alive = true;
+
+	sm->alive_count = 1;
 
 	char *cl_copy;
 	tid_t tid = -1;
@@ -60,6 +62,8 @@ tid_t process_execute(const char *cmd_line)
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(sm->cmd_line, PRI_DEFAULT, start_process, sm);
+
+	// printf("TID IS %d\n", tid);
 	if (tid == TID_ERROR)
 	{
 		palloc_free_page(cl_copy);
@@ -68,13 +72,16 @@ tid_t process_execute(const char *cmd_line)
 	}
 	sema_down(&sm->sema_exec);
 	
-
-	if(sm->child_alive == false){
-		palloc_free_page(cl_copy);
-		return TID_ERROR;
+	lock_acquire(&sm->alive_count_lock);
+	if(sm->alive_count == 1){
+		lock_release(&sm->alive_count_lock);
+	 	palloc_free_page(cl_copy);
+	 	return TID_ERROR;
 	}
+	lock_release(&sm->alive_count_lock);
+
 	list_push_back(&cur->child_relations, &sm->elem);
-	
+	//printf("New child tid: %d\n", tid);
 
 	palloc_free_page(cl_copy);
 	sm->child_tid = tid;
@@ -112,21 +119,24 @@ static void start_process(void *aux)
 
 	// Note: load requires the file name only, not the entire cmd_line
 	success = load(t->name, &if_.eip, &if_.esp);
-	sm->child_alive = success;
 	t->parent_relation = sm;
 
 	if (success)
 	{	
-		t->parent_relation->child_alive = true;
+		lock_acquire(&t->parent_relation->alive_count_lock);
+		t->parent_relation->alive_count++;
+		lock_release(&t->parent_relation->alive_count_lock);
+		
 		push_args(&if_.esp, argc, argv);
 		sema_up(&sm->sema_exec); // done loading!
 	}
 	else
 	{
+		t->parent_relation->exit_status = -1;
 		palloc_free_page(argv);
-		// t->tid = TID_ERROR;
-		sema_up(&sm->sema_exec); // done loading!
-		exit(-1);
+		sema_up(&t->parent_relation->sema_exec); // done loading!
+		thread_exit();
+		// exit(-1);
 	}
 
 	/* Start the user process by simulating a return from an
@@ -159,52 +169,78 @@ static void start_process(void *aux)
 	*/
 int process_wait(tid_t child_tid)
 {
+
+	// printf("WAITING!!\n");
+	// CANT WAIT ON ERRORED CHILD
+	if (child_tid == TID_ERROR)
+		return -1;
+
 	struct thread *cur = thread_current();
 
+	// ALREADY WAAITING!
 	if (cur->waiting)
-	{
 		return -1;
-	}
 
 	int exit_status = -1;
 
 	struct list_elem *e;
-	struct shared_mem *sm = NULL;
+	struct shared_mem *childs_sm = NULL;
+	struct shared_mem *temp_sm = NULL;
+
+	// FIND THE CHILD
 	for (e = list_begin(&cur->child_relations); e != list_end(&cur->child_relations); e = list_next(e))
 	{
-		sm = list_entry(e, struct shared_mem, elem);
-		if (sm->child_tid == child_tid)
-		{
-			if (sm->child_alive == false)
-			{
-				exit_status = sm->exit_status;
-				list_remove(&sm->elem);
-				free(sm);
-				return exit_status;
-			}
-			cur->waiting = true;
-			// sema down
-			sema_down(&sm->sema_wait);
-			cur->waiting = false;
-			// get exit status
-			exit_status = sm->exit_status;
-			// remove child from my child list
-			list_remove(&sm->elem);
-			// free shared memory
-			free(sm);
-
-			return exit_status;
+		temp_sm = list_entry(e, struct shared_mem, elem);
+		if (temp_sm->child_tid == child_tid) { //found the child
+			childs_sm = temp_sm; // THIS ISIT!!
+			break;
 		}
 	}
-	return exit_status;
+	
+	// DIDNT FIND THE CHILD :(
+	if (childs_sm == NULL){
+		return -1;
+	}
+
+	// CHILD ALREADY DEAD?
+	// printf("Acquiring lock!\n");
+	lock_acquire(&childs_sm->alive_count_lock);
+	if (childs_sm->alive_count == 1 )
+	{
+		lock_release(&childs_sm->alive_count_lock);
+		return childs_sm->exit_status;
+	}
+	lock_release(&childs_sm->alive_count_lock);
+
+	// ACTUALLY WAIT..
+
+	cur->waiting = true;
+	sema_down(&childs_sm->sema_wait);
+	cur->waiting = false;
+	
+	return childs_sm->exit_status;
 }
 
 /* Free the current process's resources. */
 void process_exit(void)
 {
+	
 	struct thread *cur = thread_current();
-
 	printf("%s: exit(%d)\n", cur->name, cur->parent_relation->exit_status);
+
+	lock_acquire(&cur->parent_relation->alive_count_lock);
+	cur->parent_relation->alive_count--;
+	if (cur->parent_relation->alive_count == 0)
+	{
+		lock_release(&cur->parent_relation->alive_count_lock);
+		free(cur->parent_relation); //i am the last of my family
+	}
+	else
+	{
+		lock_release(&cur->parent_relation->alive_count_lock);
+		sema_up(&cur->parent_relation->sema_wait);
+	} // IM DYING HERER
+	
 
 	/* Close all open files. */
 	struct list_elem *e;
@@ -215,25 +251,23 @@ void process_exit(void)
 		file_close(fd_entry->file);
 		list_remove(e);
 	}
-	// Signal all  children that i am dying
-
+	// Children, I AM DYING!!
 	struct shared_mem *sm;
 	for (e = list_begin(&cur->child_relations); e != list_end(&cur->child_relations); e = list_next(e))
 	{
 		sm = list_entry(e, struct shared_mem, elem);
-		sm->parent_alive = false;
-		sema_up(&sm->sema_wait);
+		lock_acquire(&sm->alive_count_lock);
+		sm->alive_count--;
+		if (sm->alive_count == 0)
+		{
+			lock_release(&sm->alive_count_lock);
+			list_remove(e);
+			free(sm);
+		}
+		else
+			lock_release(&sm->alive_count_lock);
 	}
-	// if we have a parent sema up them.
-	if (cur->parent_relation != NULL)
-	{
-		cur->parent_relation->child_alive = false;
-		sema_up(&cur->parent_relation->sema_wait);
-	}
-	else // if we don't have a parent, free the shared memory
-	{
-		free(cur->parent_relation);
-	}
+	
 
 	uint32_t *pd;
 	/* Destroy the current process's page directory and switch back

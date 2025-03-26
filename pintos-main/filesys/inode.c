@@ -49,6 +49,7 @@ void inode_init(void)
 bool inode_create(block_sector_t sector, off_t length)
 {
 
+	lock_acquire(&filesys_lock);
 	struct inode_disk *disk_inode = NULL;
 	bool success = false;
 
@@ -58,7 +59,6 @@ bool inode_create(block_sector_t sector, off_t length)
 		one sector in size, and you should fix that. */
 	ASSERT(sizeof *disk_inode == BLOCK_SECTOR_SIZE);
 
-	lock_acquire(&filesys_lock);
 	disk_inode = calloc(1, sizeof *disk_inode);
 	if (disk_inode != NULL)
 	{

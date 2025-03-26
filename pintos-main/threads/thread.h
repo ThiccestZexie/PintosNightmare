@@ -91,18 +91,18 @@ typedef int tid_t;
 struct shared_mem
 {
 	char *cmd_line;
+
 	tid_t child_tid;
 	int exit_status; // childs exit status
-	struct list_elem elem;
-
-	// false means exited
-	// true means not exited
-	bool child_alive;
-	bool parent_alive;
-
-
+	
+	int alive_count; 
+	struct lock alive_count_lock;
+	
 	struct semaphore sema_exec; // so daddy can wait for me to finish spawning
 	struct semaphore sema_wait; // so dadddy can wait for me to die ;(
+
+
+	struct list_elem elem;
 };
 
 struct file_descriptor

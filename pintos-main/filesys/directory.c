@@ -8,7 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-//struct lock dir_lock;
+struct lock dir_lock;
+
 
 /* A directory. */
 struct dir {
@@ -23,6 +24,8 @@ struct dir_entry {
 	bool in_use;					  /* In use or free? */
 };
 
+
+
 /* Creates a directory with space for ENTRY_CNT entries in the
 	given SECTOR.  Returns true if successful, false on failure. */
 bool dir_create(block_sector_t sector, size_t entry_cnt)
@@ -31,6 +34,10 @@ bool dir_create(block_sector_t sector, size_t entry_cnt)
 	return inode_create(sector, entry_cnt * sizeof(struct dir_entry));
 }
 
+void dir_init(void)
+{
+	lock_init(&dir_lock);
+}
 /* Opens and returns the directory for the given INODE, of which
 	it takes ownership.  Returns a null pointer on failure. */
 struct dir* dir_open(struct inode* inode)
@@ -137,14 +144,14 @@ bool dir_lookup(const struct dir* dir, const char* name, struct inode** inode)
 	error occurs. */
 bool dir_add(struct dir* dir, const char* name, block_sector_t inode_sector)
 {
-	//lock_acquire(&dir_lock);
 	struct dir_entry e;
 	off_t ofs;
 	bool success = false;
-
+	
 	ASSERT(dir != NULL);
 	ASSERT(name != NULL);
-
+	
+	lock_acquire(&dir_lock);
 	/* Check NAME for validity. */
 	if (*name == '\0' || strlen(name) > NAME_MAX)
 		return false;
@@ -172,7 +179,7 @@ bool dir_add(struct dir* dir, const char* name, block_sector_t inode_sector)
 	success = inode_write_at(dir->inode, &e, sizeof e, ofs) == sizeof e;
 
 done:
-	//lock_release(&dir_lock);
+	lock_release(&dir_lock);
 	return success;
 }
 
@@ -181,7 +188,6 @@ done:
 	which occurs only if there is no file with the given NAME. */
 bool dir_remove(struct dir* dir, const char* name)
 {
-//	lock_acquire(&dir_lock);
 	struct dir_entry e;
 	struct inode* inode = NULL;
 	bool success = false;
@@ -189,7 +195,7 @@ bool dir_remove(struct dir* dir, const char* name)
 
 	ASSERT(dir != NULL);
 	ASSERT(name != NULL);
-
+	lock_acquire(&dir_lock);
 	/* Find directory entry. */
 	if (!lookup(dir, name, &e, &ofs))
 		goto done;
@@ -210,7 +216,7 @@ bool dir_remove(struct dir* dir, const char* name)
 
 done:
 	inode_close(inode);
-	//lock_release(&dir_lock);
+	lock_release(&dir_lock);
 	return success;
 }
 

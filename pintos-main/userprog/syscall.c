@@ -48,8 +48,8 @@ void syscall_init(void)
 void validate_set_args(void *esp, int amount)
 {
 	// check all bytes of the arguments
-	int validate = amount * 8;
-	for (int i = 0; i < validate; i++)
+	int bytes_to_check = amount * sizeof(int);
+	for (int i = 0; i < bytes_to_check; i++)
 	{
 		validate_pointer(esp + i);
 	}
@@ -60,13 +60,13 @@ static void syscall_handler(struct intr_frame *f)
 	// retrieve system call number
 	int argv[MAX_ARGS];
 
+	// check if the stack is valid
 	for (int i = 0; i < 4; i++)
 	{
 		validate_pointer(f->esp + i);
 	}
 
 	int syscall_num = *(int *)f->esp;
-	// retrieve_args(f->esp, argv); // this gets argc from stack hypothetically speaking that  is
 	switch (syscall_num)
 	{
 	case SYS_HALT:
@@ -141,7 +141,6 @@ void exit(int status)
 	struct thread *cur = thread_current();
 	
 	cur->parent_relation->exit_status = status;
-
 	thread_exit(); // As long as USERPROG is defined, this will call process_exit
 }
 
@@ -342,7 +341,6 @@ void retrive_args1(void *esp, int *argv[], unsigned argc)
 
 void validate_pointer(void *ptr)
 {
-	void *page = pagedir_get_page(thread_current()->pagedir, ptr);
 	if (ptr == NULL)
 	{
 		exit(-1);
@@ -351,11 +349,7 @@ void validate_pointer(void *ptr)
 	{
 		exit(-1);
 	}
-	if (page == NULL)
-	{
-		exit(-1);
-	}
-	if (ptr < (void *)0x08048000)
+	if (pagedir_get_page(thread_current()->pagedir, ptr) == NULL)
 	{
 		exit(-1);
 	}
