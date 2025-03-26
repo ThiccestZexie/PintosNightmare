@@ -63,17 +63,16 @@ tid_t process_execute(const char *cmd_line)
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(sm->cmd_line, PRI_DEFAULT, start_process, sm);
 
-	// printf("TID IS %d\n", tid);
+	sema_down(&sm->sema_exec);
 	if (tid == TID_ERROR)
 	{
 		palloc_free_page(cl_copy);
 		free(sm);
 		return TID_ERROR;
 	}
-	sema_down(&sm->sema_exec);
 
 	lock_acquire(&sm->alive_count_lock);
-	if (sm->alive_count == 1)
+	if (sm->alive_count <= 1)
 	{
 		lock_release(&sm->alive_count_lock);
 		palloc_free_page(cl_copy);
@@ -109,15 +108,16 @@ static void start_process(void *aux)
 	char **argv = (const char **)palloc_get_page(0);
 	unsigned argc = 0;
 	char *save_ptr;
-
+	
 	argv[0] = strtok_r(cmd_line, " ", &save_ptr);
 	for (argc = 1; argc < MAX_ARGC; argc++)
 	{
 		argv[argc] = strtok_r(NULL, " ", &save_ptr);
 		if (argv[argc] == NULL)
-			break;
+		break;
 	}
-
+	
+	
 	// Note: load requires the file name only, not the entire cmd_line
 	success = load(t->name, &if_.eip, &if_.esp);
 	t->parent_relation = sm;
@@ -133,10 +133,8 @@ static void start_process(void *aux)
 	}
 	else
 	{
-		t->parent_relation->exit_status = -1;
 		palloc_free_page(argv);
 		sema_up(&t->parent_relation->sema_exec); // done loading!
-												 // thread_exit();
 		exit(-1);
 	}
 
@@ -204,26 +202,28 @@ int process_wait(tid_t child_tid)
 	{
 		return -1;
 	}
+
 	if (childs_sm->waited)
 		return -1;
 
-	// CHILD ALREADY DEAD?
-	// printf("Acquiring lock!\n");
-	lock_acquire(&childs_sm->alive_count_lock);
-	if (childs_sm->alive_count == 1)
-	{
+		
+		// ACTUALLY WAIT..
+		
+		cur->waiting = true;
+		childs_sm->waited = true;
+		sema_down(&childs_sm->sema_wait);
+		cur->waiting = false;
+
+		// CHILD ALREADY DEAD?
+		// printf("Acquiring lock!\n");
+		lock_acquire(&childs_sm->alive_count_lock);
+		if (childs_sm->alive_count == 1)
+		{
+			lock_release(&childs_sm->alive_count_lock);
+			return childs_sm->exit_status;
+		}
 		lock_release(&childs_sm->alive_count_lock);
-		return childs_sm->exit_status;
-	}
-	lock_release(&childs_sm->alive_count_lock);
-
-	// ACTUALLY WAIT..
-
-	cur->waiting = true;
-	childs_sm->waited = true;
-	sema_down(&childs_sm->sema_wait);
-	cur->waiting = false;
-
+		
 	return childs_sm->exit_status;
 }
 
