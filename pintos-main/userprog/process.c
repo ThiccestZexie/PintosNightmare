@@ -30,6 +30,17 @@ static bool load(const char *file_name, void (**eip)(void), void **esp);
 static void dump_stack(const void *esp);
 void push_args(void **esp, const unsigned argc, const char *argv[]);
 
+/* Assuming there is a structure tracking child info, add the new field: */
+struct child_process
+{
+	tid_t tid;
+	int exit_status;
+	bool waited;		   // <-- New field to ensure wait is called only once
+	struct semaphore sema; // used to signal child exit
+	struct list_elem elem;
+	// ...existing fields...
+};
+
 /* Starts a new thread running a user program loaded from
 	CMD_LINE.  The new thread may be scheduled (and may even exit)
 	before process_execute() returns.  Returns the new process's
@@ -204,6 +215,8 @@ int process_wait(tid_t child_tid)
 	{
 		return -1;
 	}
+	if (childs_sm->waited)
+		return -1;
 
 	// CHILD ALREADY DEAD?
 	// printf("Acquiring lock!\n");
@@ -218,6 +231,7 @@ int process_wait(tid_t child_tid)
 	// ACTUALLY WAIT..
 
 	cur->waiting = true;
+	childs_sm->waited = true;
 	sema_down(&childs_sm->sema_wait);
 	cur->waiting = false;
 

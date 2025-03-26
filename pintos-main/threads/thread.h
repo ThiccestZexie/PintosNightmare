@@ -53,6 +53,7 @@ typedef int tid_t;
 				|                                 |
 				|                                 |
 				|                                 |
+				|                                 |
 				+---------------------------------+
 				|              magic              |
 				|                :                |
@@ -94,13 +95,14 @@ struct shared_mem
 
 	tid_t child_tid;
 	int exit_status; // childs exit status
-	
-	int alive_count; 
+
+	int alive_count;
 	struct lock alive_count_lock;
-	
+
 	struct semaphore sema_exec; // so daddy can wait for me to finish spawning
 	struct semaphore sema_wait; // so dadddy can wait for me to die ;(
 
+	bool waited;
 
 	struct list_elem elem;
 };
@@ -129,9 +131,9 @@ struct thread
 	uint32_t *pagedir; /* Page directory. */
 	int next_fd;
 	struct list file_descriptors;
-	
-	bool waiting; 
-	
+
+	bool waiting;
+
 	struct list child_relations;
 	struct shared_mem *parent_relation;
 #endif
