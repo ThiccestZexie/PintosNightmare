@@ -6,9 +6,10 @@
 
 #define MAX_SPAWN 100
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-	if (argc != 4) {
+	if (argc != 4)
+	{
 		return 1;
 	}
 
@@ -27,19 +28,23 @@ int main(int argc, char* argv[])
 	/* Execute child and wait for it to finish if requested. */
 	int spawn = atoi(argv[2]);
 
-	if (spawn != 0) {
-		for (i = 0; i < spawn; i++) {
+	if (spawn != 0)
+	{
+		for (i = 0; i < spawn; i++)
+		{
 			snprintf(
-				 buffer,
-				 sizeof buffer,
-				 "recursor-c %s %d %s",
-				 argv[1],
-				 atoi(argv[2]) - 1,
-				 argv[3]);
+				buffer,
+				sizeof buffer,
+				"recursor-c %s %d %s",
+				argv[1],
+				atoi(argv[2]) - 1,
+				argv[3]);
 			pid[i] = exec(buffer);
 		}
-		if (atoi(argv[3])) {
-			for (i = 0; i < spawn; i++) {
+		if (atoi(argv[3]))
+		{
+			for (i = 0; i < spawn; i++)
+			{
 				retval = wait(pid[i]);
 				if (retval < 0)
 					ret = 1;

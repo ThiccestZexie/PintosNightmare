@@ -30,17 +30,6 @@ static bool load(const char *file_name, void (**eip)(void), void **esp);
 static void dump_stack(const void *esp);
 void push_args(void **esp, const unsigned argc, const char *argv[]);
 
-/* Assuming there is a structure tracking child info, add the new field: */
-struct child_process
-{
-	tid_t tid;
-	int exit_status;
-	bool waited;		   // <-- New field to ensure wait is called only once
-	struct semaphore sema; // used to signal child exit
-	struct list_elem elem;
-	// ...existing fields...
-};
-
 /* Starts a new thread running a user program loaded from
 	CMD_LINE.  The new thread may be scheduled (and may even exit)
 	before process_execute() returns.  Returns the new process's
@@ -147,8 +136,8 @@ static void start_process(void *aux)
 		t->parent_relation->exit_status = -1;
 		palloc_free_page(argv);
 		sema_up(&t->parent_relation->sema_exec); // done loading!
-		thread_exit();
-		// exit(-1);
+												 // thread_exit();
+		exit(-1);
 	}
 
 	/* Start the user process by simulating a return from an

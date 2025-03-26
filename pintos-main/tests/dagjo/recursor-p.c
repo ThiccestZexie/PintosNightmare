@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <syscall.h>
 
-const char* test_name = "recursor_ng";
+const char *test_name = "recursor_ng";
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
 	quiet = true;
 
