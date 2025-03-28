@@ -59,10 +59,10 @@ tid_t process_execute(const char *cmd_line)
 
 	strlcpy(cl_copy, cmd_line, PGSIZE);
 	sm->cmd_line = cl_copy;
+	list_push_back(&cur->child_relations, &sm->elem);
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(sm->cmd_line, PRI_DEFAULT, start_process, sm);
-
 	sema_down(&sm->sema_exec);
 	if (tid == TID_ERROR)
 	{
@@ -80,7 +80,6 @@ tid_t process_execute(const char *cmd_line)
 	}
 	lock_release(&sm->alive_count_lock);
 
-	list_push_back(&cur->child_relations, &sm->elem);
 	// printf("New child tid: %d\n", tid);
 
 	palloc_free_page(cl_copy);
@@ -171,15 +170,11 @@ int process_wait(tid_t child_tid)
 
 	// printf("WAITING!!\n");
 	// CANT WAIT ON ERRORED CHILD
-	if (child_tid == TID_ERROR)
-		return -1;
+	// if (child_tid == TID_ERROR){
+	// 	return -1;
+	// }
 
 	struct thread *cur = thread_current();
-
-	// ALREADY WAAITING!
-	if (cur->waiting)
-		return -1;
-
 	int exit_status = -1;
 
 	struct list_elem *e;
@@ -200,19 +195,14 @@ int process_wait(tid_t child_tid)
 	// DIDNT FIND THE CHILD :(
 	if (childs_sm == NULL)
 	{
-		return -1;
+				return -1;
 	}
 
 	if (childs_sm->waited)
 		return -1;
 
-		
-		// ACTUALLY WAIT..
-		
-		cur->waiting = true;
 		childs_sm->waited = true;
 		sema_down(&childs_sm->sema_wait);
-		cur->waiting = false;
 
 		// CHILD ALREADY DEAD?
 		// printf("Acquiring lock!\n");

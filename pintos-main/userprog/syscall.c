@@ -139,7 +139,6 @@ void halt(void)
 void exit(int status)
 {
 	struct thread *cur = thread_current();
-	
 	cur->parent_relation->exit_status = status;
 	thread_exit(); // As long as USERPROG is defined, this will call process_exit
 }
